@@ -1,0 +1,9 @@
+[wrap-git]
+
+directory = code-injection
+url=https://github.com/randydu/code-injection.git
+revision = latest
+clone-recursive = false
+
+[provide]
+code_injection = code_injection_dep

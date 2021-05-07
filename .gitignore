@@ -1,3 +1,6 @@
+# build outputs
+output/
+
 # ---> C++
 # Compiled Object files
 *.slo
