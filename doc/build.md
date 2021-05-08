@@ -15,7 +15,7 @@ Toolkit:
 
 
 
-To build targets with the minimum dll-dependency, it is recommended to build project with runtime static-link.
+To build targets with the minimum dll-dependency, it is recommended to build project with runtime static-linked.
 
 
 Before starting build in a terminal console, we need to setup correct build environment for either 32-bit or 64-bit build, the following two batch files are copied from VC2019 installation, I just copy them to a folder in the PATH environment so they can be invoked anywhere without specifying the long path.

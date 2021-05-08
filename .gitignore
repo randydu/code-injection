@@ -1,6 +1,9 @@
 # build outputs
 output/
 
+# VSCode settings
+.vscode/
+
 # ---> C++
 # Compiled Object files
 *.slo
