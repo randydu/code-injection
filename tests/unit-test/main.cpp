@@ -1,2 +1,14 @@
-#define CATCH_CONFIG_MAIN
-#include <catch2/catch.hpp>
+#include "catch_ex.h"
+
+#include "test_util.h"
+
+REGISTER_TEST_CALLBACK([](bool start){
+    if(start){
+        printf("code-injection unit-test begins...\n");
+        
+        CI::init();
+
+    } else {
+        printf("code-injection unit-test ends.\n");
+    }
+});
