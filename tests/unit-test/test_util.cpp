@@ -3,13 +3,11 @@
 
 #include <filesystem>
 
-namespace CI {
+namespace CI::ut {
 namespace {
 std::filesystem::path test_data_dir; //path to test data folder
 
-
-
-template<typename T>
+template <typename T>
 std::filesystem::path impl_get_test_data_file(const T &rel_data_path) {
     auto p = test_data_dir / rel_data_path;
     if (!std::filesystem::exists(p)) {
@@ -17,7 +15,7 @@ std::filesystem::path impl_get_test_data_file(const T &rel_data_path) {
     }
     return p;
 }
-}
+} // namespace
 
 void init() {
     char *p = getenv(TEST_DATA_ENV);
@@ -38,4 +36,4 @@ std::wstring get_test_data_file(const std::wstring &rel_data_path) {
     return impl_get_test_data_file(rel_data_path).wstring();
 }
 
-} // namespace CI
+} // namespace CI::ut

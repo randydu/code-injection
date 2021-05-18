@@ -14,6 +14,7 @@ enum ci_error_code {
     INVALID_ARG = -2,             //invalid argument
     FEATURE_NOT_IMPLEMENTED = -3, //some feature is not implemented yet.
     TARGET_LAUNCH_FAILURE = -4,   //cannot launch target
+    TARGET_INJECT_FAILURE = -5,   //cannot inject to target
 };
 
 class ci_error : public std::exception {
@@ -28,7 +29,7 @@ class ci_error : public std::exception {
 
 struct shell_code_t {
     std::vector<uint8_t> code; //shell code content
-    int entry;                 //entry point offset in the code (index of the code vector)
+    int entry{0};                 //entry point offset in the code (index of the code vector)
 };
 
 //details of injected dll
@@ -45,6 +46,11 @@ struct target_info_t {
     T exe_path; //full path to target exe
     T params;   //command line parameters
     T cur_dir;  //current directory
+
+    bool wait_until_initialized{false}; //wait until target process has finished its initialization
+                                        //and is waiting gor user input with no input pending.
+    DWORD wait_timeout;                 //time-out intervals in milliseconds.
+                                        //INFINITE: wait until the process is idle.
 };
 
 using func_injector_t = std::function<void(const PROCESS_INFORMATION &, const shell_code_t &)>;

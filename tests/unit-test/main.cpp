@@ -6,7 +6,7 @@ REGISTER_TEST_CALLBACK([](bool start){
     if(start){
         printf("code-injection unit-test begins...\n");
         
-        CI::init();
+        CI::ut::init();
 
     } else {
         printf("code-injection unit-test ends.\n");

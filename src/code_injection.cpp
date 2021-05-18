@@ -86,7 +86,26 @@ void launch_target(const target_info_t &target, PROCESS_INFORMATION &pi) {
     if (!create_process(target.exe_path.c_str(), cmdline.empty() ? NULL : (char_t *)cmdline.c_str(),
                         NULL, NULL, FALSE, CREATE_SUSPENDED, NULL,
                         target.cur_dir.empty() ? NULL : target.cur_dir.c_str(), &si, &pi)) {
-        ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "error-code: [%d]", GetLastError());
+        ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "CreateProcess fails, error-code: [%d]", GetLastError());
+    }
+}
+
+template <bool ansi, typename target_info_t = type_trait_t<ansi>::target_info_t>
+void launch_inject(const target_info_t &target, const shell_code_t &sc, func_injector_t injector) {
+    PROCESS_INFORMATION pi;
+    launch_target<ansi>(target, pi);
+    ON_EXIT({
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    });
+
+    injector(pi, sc);
+
+    if (ResumeThread(pi.hThread) == -1) {
+        ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "ResumeThread fails, error-code: [%d]", GetLastError());
+    }
+    if (target.wait_until_initialized && (WaitForInputIdle(pi.hProcess, target.wait_timeout) == WAIT_FAILED)) {
+        ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "WaitForInputIdle fails, error-code: [%d]", GetLastError());
     }
 }
 
@@ -119,26 +138,10 @@ void launch_inject(const target_info_w &target, const injected_dll_w &dll, func_
     launch_inject(target, sc, injector);
 }
 void launch_inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector) {
-    PROCESS_INFORMATION pi;
-    launch_target<true>(target, pi);
-    ON_EXIT({
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-    });
-
-    injector(pi, sc);
-    ResumeThread(pi.hThread);
+    launch_inject<true>(target, sc, injector);
 }
 void launch_inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector) {
-    PROCESS_INFORMATION pi;
-    launch_target<false>(target, pi);
-    ON_EXIT({
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-    });
-    
-    injector(pi, sc);
-    ResumeThread(pi.hThread);
+    launch_inject<false>(target, sc, injector);
 }
 
 //inject into running target

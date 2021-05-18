@@ -1,4 +1,4 @@
-srcs = [ 'code_injection.cpp' ]
+srcs = [ 'code_injection.cpp', 'injectors.cpp' ]
 
 lib_code_injection = static_library('code_injection', srcs, dependencies: [])
 
