@@ -34,7 +34,7 @@ TEST_CASE("launch-inject-test", tag) {
         target_info_a target{CI::ut::get_test_data_file("bin/Notepad3.exe")};
 
         SECTION("Shell Code") {
-            printf("sleep...\n");
+            printf("sleep...\n");// sleep for a while so we can hear different beeps.
             std::this_thread::sleep_for(std::chrono::seconds(3));
 
             const auto& shellcode = CI::ut::sc_beep_64();
