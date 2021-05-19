@@ -8,7 +8,7 @@
 #include "code_injection.hpp"
 
 namespace CI {
-void inject_context(const PROCESS_INFORMATION &pi, const shell_code_t &sc);
+void inject_context(const PROCESS_INFORMATION &pi, const shell_code_t &sc, inject_option_t opt);
 }
 
 #endif

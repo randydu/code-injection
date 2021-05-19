@@ -8,6 +8,10 @@
 
 #include <windows.h>
 
+#include "shell_code.hpp"
+
+using shell_code_t = CI::shellcode::shell_code_t;
+
 namespace CI {
 enum ci_error_code {
     UNKNOWN = -1,                 //unknown error
@@ -25,11 +29,6 @@ class ci_error : public std::exception {
     ci_error(ci_error_code err, const char *msg) : std::exception(msg), _err(err) {}
     ci_error_code error() const { return _err; }
     [[noreturn]] static void raise(ci_error_code err, const char *fmt, ...);
-};
-
-struct shell_code_t {
-    std::vector<uint8_t> code; //shell code content
-    int entry{0};                 //entry point offset in the code (index of the code vector)
 };
 
 //details of injected dll
@@ -53,7 +52,13 @@ struct target_info_t {
                                         //INFINITE: wait until the process is idle.
 };
 
-using func_injector_t = std::function<void(const PROCESS_INFORMATION &, const shell_code_t &)>;
+enum inject_option_t {
+    INJECT_NONE,        //do nothing after injected shellcode is executed, its behavior depends on the shellcode.
+    INJECT_EXITPROCESS, //exit target process after injected shellcode is executed.
+    INJECT_RESUME,      //resume target process running after injected shellcode is executed
+};
+
+using func_injector_t = std::function<void(const PROCESS_INFORMATION &, const shell_code_t &, inject_option_t)>;
 
 using target_info_a = target_info_t<std::string>;
 using target_info_w = target_info_t<std::wstring>;
@@ -62,17 +67,19 @@ using injected_dll_a = injected_dll_t<std::string>;
 using injected_dll_w = injected_dll_t<std::wstring>;
 
 //launch target and inject
-void launch_inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector);
-void launch_inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector);
-void launch_inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector);
-void launch_inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector);
+void launch_inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, inject_option_t opt = INJECT_NONE);
+void launch_inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, inject_option_t opt = INJECT_NONE);
+void launch_inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt = INJECT_NONE);
+void launch_inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt = INJECT_NONE);
 
 //inject into running target
-void inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector);
-void inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector);
-void inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector);
-void inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector);
+void inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, inject_option_t opt = INJECT_NONE);
+void inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, inject_option_t opt = INJECT_NONE);
+void inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt = INJECT_NONE);
+void inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt = INJECT_NONE);
 
+//util
+void *get_api(const char *dll, const char *api);
 } // namespace CI
 
 #endif

@@ -91,7 +91,7 @@ void launch_target(const target_info_t &target, PROCESS_INFORMATION &pi) {
 }
 
 template <bool ansi, typename target_info_t = type_trait_t<ansi>::target_info_t>
-void launch_inject(const target_info_t &target, const shell_code_t &sc, func_injector_t injector) {
+void launch_inject(const target_info_t &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {
     PROCESS_INFORMATION pi;
     launch_target<ansi>(target, pi);
     ON_EXIT({
@@ -99,7 +99,7 @@ void launch_inject(const target_info_t &target, const shell_code_t &sc, func_inj
         CloseHandle(pi.hThread);
     });
 
-    injector(pi, sc);
+    injector(pi, sc, opt);
 
     if (ResumeThread(pi.hThread) == -1) {
         ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "ResumeThread fails, error-code: [%d]", GetLastError());
@@ -127,36 +127,45 @@ void ci_error::raise(ci_error_code err, const char *fmt, ...) {
 }
 
 //launch target and inject
-void launch_inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector) {
+void launch_inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, inject_option_t opt) {
     shell_code_t sc;
     prepare_shell_code(dll, sc);
-    launch_inject(target, sc, injector);
+    launch_inject(target, sc, injector, opt);
 }
-void launch_inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector) {
+void launch_inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, inject_option_t opt) {
     shell_code_t sc;
     prepare_shell_code(dll, sc);
-    launch_inject(target, sc, injector);
+    launch_inject(target, sc, injector, opt);
 }
-void launch_inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector) {
-    launch_inject<true>(target, sc, injector);
+void launch_inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {
+    launch_inject<true>(target, sc, injector, opt);
 }
-void launch_inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector) {
-    launch_inject<false>(target, sc, injector);
+void launch_inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {
+    launch_inject<false>(target, sc, injector, opt);
 }
 
 //inject into running target
-void inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector) {
+void inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, inject_option_t opt) {
     shell_code_t sc;
     prepare_shell_code(dll, sc);
-    inject(target, sc, injector);
+    inject(target, sc, injector, opt);
 }
-void inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector) {
+void inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, inject_option_t opt) {
     shell_code_t sc;
     prepare_shell_code(dll, sc);
-    inject(target, sc, injector);
+    inject(target, sc, injector, opt);
 }
-void inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector) {
+void inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {
 }
-void inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector) {}
+void inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {}
 
+void *get_api(const char *dll, const char *api) {
+    HMODULE h{NULL};
+    if (h = GetModuleHandleA(dll); h == NULL) {
+        h = LoadLibraryA(dll);
+    }
+
+    assert(h != NULL);
+    return GetProcAddress(h, api);
+}
 } // namespace CI

@@ -14,7 +14,7 @@ constexpr auto tag = "[launch-inject]";
 
 using namespace CI;
 
-void dummy_injector(const PROCESS_INFORMATION &pi, const shell_code_t &sc) {}
+void dummy_injector(const PROCESS_INFORMATION &pi, const shell_code_t &sc, inject_option_t opt) {}
 
 TEST_CASE("launch-inject-test", tag) {
     SECTION("UNICODE") {
@@ -22,7 +22,7 @@ TEST_CASE("launch-inject-test", tag) {
 
         SECTION("Shell Code") {
             const auto& shellcode = CI::ut::sc_beep_64();
-            CHECK_NOTHROW(launch_inject(target, shellcode, inject_context));
+            CHECK_NOTHROW(launch_inject(target, shellcode, inject_context, CI::inject_option_t::INJECT_RESUME));
         }
         SECTION("Dll") {
             return;
@@ -35,10 +35,10 @@ TEST_CASE("launch-inject-test", tag) {
 
         SECTION("Shell Code") {
             printf("sleep...\n");// sleep for a while so we can hear different beeps.
-            std::this_thread::sleep_for(std::chrono::seconds(3));
+            std::this_thread::sleep_for(std::chrono::seconds(1));
 
             const auto& shellcode = CI::ut::sc_beep_64();
-            CHECK_NOTHROW(launch_inject(target, shellcode, inject_context));
+            CHECK_NOTHROW(launch_inject(target, shellcode, inject_context, CI::inject_option_t::INJECT_EXITPROCESS));
         }
         SECTION("Dll") {
             return;
