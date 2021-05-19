@@ -1,6 +1,8 @@
 # build outputs
 output/
 
+*.sln
+
 # VSCode settings
 .vscode/
 
