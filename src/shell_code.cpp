@@ -30,14 +30,14 @@ shell_code_t join(const shell_code_t &sca, const shell_code_t &scb) {
 namespace {
 
 #pragma pack(push, 1)
-struct sc_exitprocess_param_64_t {
+struct sc_exitprocess_param_t {
     using exitprocess_t = void(WINAPI *)(UINT uExitCode);
     exitprocess_t exitprocess;
 };
 
 struct sc_exitprocess_t {
     uint8_t set_exitcode[2]{0x33, 0xc9}; //xor ecx, ecx
-    uint8_t call[2]{0xff, 0x13};         //call [rbx]
+    uint8_t call[2]{0xff, 0x13};         //call [rbx] | call [ebx]
 };
 
 //Continue to where the app should go normally
@@ -95,16 +95,56 @@ struct sc_continue_64_t {
     uint8_t _23{0xc3}; //ret
 };
 
+struct sc_continue_param_32_t {
+    uint32_t esp;
+    uint32_t ebp;
+
+    uint32_t eax;
+    uint32_t ebx;
+    uint32_t ecx;
+    uint32_t edx;
+    uint32_t esi;
+    uint32_t edi;
+
+    uint32_t flags;
+    uint32_t eip;
+};
+
+struct sc_continue_32_t {
+    uint8_t _0[3]{0x8d, 0x73, 0x04};   //lea esi, [ebx+4]
+    uint8_t _1[2]{0x8b, 0x23};         //mov esp, [ebx]
+    uint8_t _2[3]{0x83, 0xec, 0x24};   //sub esp, sizeof(sc_continue_param_32_t)-4 = 4*9
+    uint8_t _3[2]{0x8b, 0xfc};         //mov edi, esp
+    uint8_t _4[5]{0xb9, 0x9, 0, 0, 0}; //mov ecx, 9
+    uint8_t _5[1]{0xfc};               //cld
+    uint8_t _6[2]{0xf3, 0xa5};         //rep movsd
+
+    uint8_t _7{0x5d};  //pop ebp
+    uint8_t _8{0x58};  //pop eax;
+    uint8_t _9{0x5b};  //pop ebx;
+    uint8_t _10{0x59}; //pop ecx;
+    uint8_t _11{0x5a}; //pop edx;
+    uint8_t _12{0x5e}; //pop esi;
+    uint8_t _13{0x5f}; //pop edi;
+
+    uint8_t _22{0x9d}; //popfd
+    uint8_t _23{0xc3}; //ret
+};
+
 #pragma pack(pop)
 } // namespace
 
-shell_code_t sc_exit_process(UINT exit_code) {
-    sc_exitprocess_param_64_t param;
-    param.exitprocess = (sc_exitprocess_param_64_t::exitprocess_t)get_api("kernel32.dll", "ExitProcess");
+shell_code_t sc_exit_process(UINT exit_code, bool self_resolve_api) {
+    if(self_resolve_api)
+        CI::ci_error::raise(ci_error_code::FEATURE_NOT_IMPLEMENTED, "sc_exit_process: self-resolve-api not implemented");
+
+    sc_exitprocess_param_t param;
+    param.exitprocess = (sc_exitprocess_param_t::exitprocess_t)get_api("kernel32.dll", "ExitProcess");
 
     return sc_compose(param, sc_exitprocess_t{});
 }
 
+#ifdef _WIN64
 shell_code_t sc_resume(const CONTEXT &cxt) {
     sc_continue_param_64_t continue_param;
 
@@ -130,4 +170,45 @@ shell_code_t sc_resume(const CONTEXT &cxt) {
     return sc_compose(continue_param, sc_continue_64_t{});
 }
 
+#else
+shell_code_t sc_resume(const CONTEXT &cxt) {
+    sc_continue_param_32_t continue_param;
+
+    continue_param.esp = cxt.Esp;
+    continue_param.ebp = cxt.Ebp;
+    continue_param.eax = cxt.Eax;
+    continue_param.ebx = cxt.Ebx;
+    continue_param.ecx = cxt.Ecx;
+    continue_param.edx = cxt.Edx;
+    continue_param.esi = cxt.Esi;
+    continue_param.edi = cxt.Edi;
+    continue_param.flags = cxt.EFlags;
+    continue_param.eip = cxt.Eip;
+
+    return sc_compose(continue_param, sc_continue_32_t{});
+}
+#endif
+
+shell_code_t sc_resume(const WOW64_CONTEXT &cxt) {
+    sc_continue_param_32_t continue_param;
+
+    continue_param.esp = cxt.Esp;
+    continue_param.ebp = cxt.Ebp;
+    continue_param.eax = cxt.Eax;
+    continue_param.ebx = cxt.Ebx;
+    continue_param.ecx = cxt.Ecx;
+    continue_param.edx = cxt.Edx;
+    continue_param.esi = cxt.Esi;
+    continue_param.edi = cxt.Edi;
+    continue_param.flags = cxt.EFlags;
+    continue_param.eip = cxt.Eip;
+
+    return sc_compose(continue_param, sc_continue_32_t{});
+}
+
+shell_code_t sc_dummy(){
+    shell_code_t sc;
+    sc.joinable = true;
+    return sc;
+}
 } // namespace CI::shellcode

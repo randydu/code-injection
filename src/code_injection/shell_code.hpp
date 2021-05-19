@@ -66,8 +66,11 @@ struct sc_int3_t {
     uint8_t cc{0xcc};
 };
 
-shell_code_t sc_exit_process(UINT exit_code);
+shell_code_t sc_exit_process(UINT exit_code, bool self_resolve_api);
 shell_code_t sc_resume(const CONTEXT &cxt);
+shell_code_t sc_resume(const WOW64_CONTEXT &cxt);
+
+shell_code_t sc_dummy();
 
 #pragma pack(pop)
 

@@ -10,13 +10,17 @@ constexpr auto tag = "[shellcode]";
 
 TEST_CASE("sc-helloworld", tag) {
     SECTION("32 bit") {
-        const auto &sc = CI::ut::sc_hello_world_32();
+        const auto &sc = CI::ut::sc_hello_world_32(false);
         CHECK(sc.code.empty());
         CHECK(sc.entry == 0);
     }
     SECTION("64 bit") {
-        const auto &sc = CI::ut::sc_hello_world_64();
+        const auto &sc = CI::ut::sc_hello_world_64(false);
+#ifdef _WIN64
         CHECK(sc.code.size() == 60);
+#else
+        CHECK(sc.code.size() == 56);
+#endif
         CHECK(sc.entry == 0);
     }
 }

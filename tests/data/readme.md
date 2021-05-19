@@ -2,6 +2,7 @@
 
 # bin
 
-* Notepad3.exe: simple notepad GUI
+* Notepad2_32|64.exe: 32bit & 64bit notepad GUI
 
-  https://github.com/rizonesoft/Notepad3/releases/download/RELEASE_5.21.227.1/Notepad3_5.21.227.1.zip
+https://github.com/zufuliu/notepad2
+
