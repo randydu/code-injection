@@ -50,16 +50,16 @@ shell_code_t sc_hello_world_64(bool self_resolve_api) {
     sc_helloworld_param_t param;
     param.messagebox = (messagebox_t)get_api("user32.dll", "MessageBoxA");
 
-    return CI::shellcode::sc_compose(param, sc_helloworld_msgbox_64_t{});
+    return CI::shellcode::sc_compose(param, sc_helloworld_msgbox_64_t{}, shell_code_t::arch_t::X64);
 }
 
-shell_code_t sc_beep(bool self_resolve_api) {
+shell_code_t sc_beep(bool self_resolve_api, shell_code_t::arch_t arch) {
     if(self_resolve_api)
         CI::ci_error::raise(ci_error_code::FEATURE_NOT_IMPLEMENTED, "%s: self-resolve-api not implemented", __FUNCTION__);
     sc_beep_param_t param;
     param.beep = (beep_t)get_api("user32.dll", "MessageBeep");
 
-    return CI::shellcode::sc_compose(param, sc_call_beep_t{});
+    return CI::shellcode::sc_compose(param, sc_call_beep_t{}, arch);
 }
 
 } // namespace CI::ut

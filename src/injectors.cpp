@@ -53,7 +53,7 @@ void impl_inject_context(const PROCESS_INFORMATION &pi, const shell_code_t &sc, 
 
     switch (opt) {
     case inject_option_t::INJECT_EXITPROCESS:
-        composed_sc = sc + CI::shellcode::sc_exit_process(0, shellcode_resolve_api);
+        composed_sc = sc + CI::shellcode::sc_exit_process(0, shellcode_resolve_api, sc.arch);
         psc = &composed_sc;
         break;
     case inject_option_t::INJECT_RESUME:

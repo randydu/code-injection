@@ -152,6 +152,31 @@ struct dll_code_64_t {
     //quit:
 };
 
+struct dll_code_32_t {
+    uint8_t _0[3]{0x48, 0x8b, 0xcb};       //mov rcx, rbx
+    uint8_t _1[4]{0x48, 0x03, 0x4b, 0x10}; //add rcx, [rbx + 16]   ; dllname
+    uint8_t _2[2]{0xff, 0x13};             //call [rbx]            ; load_library(dllname)
+    uint8_t _3[3]{0x48, 0x85, 0xc0};       //test rax, rax
+    uint8_t _4[2]{0x74, 0x20};             //jz quit
+    //
+    uint8_t _5[3]{0x48, 0x8b, 0xc8};       //mov rcx, rax          ; hModule
+    uint8_t _6[3]{0x48, 0x8b, 0xd3};       //mov rdx, rbx
+    uint8_t _7[4]{0x48, 0x03, 0x53, 0x18}; //add rdx, [rbx + 3*8]   ;api-name
+    uint8_t _8[3]{0xff, 0x53, 0x08};       //call [rbx + 8];       ; get_proc_address
+    uint8_t _9[3]{0x48, 0x85, 0xc0};       //test rax, rax
+    uint8_t _10[2]{0x74, 0x0e};            //jz quit
+    //
+    uint8_t _11[4]{0x48, 0x8b, 0x4b, 0x20}; //mov rcx, [rbx + 4*8]
+    uint8_t _12[3]{0x48, 0x85, 0xc9};       //test rcx, rcx         ;offset == 0 if no param
+    uint8_t _13[2]{0x74, 0x03};             //jz no_param
+    uint8_t _14[3]{0x48, 0x03, 0xcb};       //add rcx, rbx          ;void * param
+    //
+    //no_param:
+    uint8_t _15[2]{0xff, 0xd0}; //call rax
+    //
+    //quit:
+};
+
 void get_param_bytes(std::any param, std::vector<uint8_t> &vec) {
     if (!param.has_value())
         return;
@@ -218,7 +243,7 @@ shell_code_t prepare_shell_code(const injected_dll_a &dll) {
     CI::shellcode::sc_append(v, p, len);
 
     dll_code_64_t dc;
-    return CI::shellcode::sc_compose(v.data(), v.size(), &dc, sizeof(dc));
+    return CI::shellcode::sc_compose(v.data(), v.size(), &dc, sizeof(dc), shell_code_t::arch_t::X64);
 }
 
 shell_code_t prepare_shell_code(const injected_dll_w &dll) {

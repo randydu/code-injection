@@ -7,6 +7,17 @@ shell_code_t join(const shell_code_t &sca, const shell_code_t &scb) {
     if (!sca.joinable || !scb.joinable)
         CI::ci_error::raise(CI::ci_error_code::INVALID_ARG, "operator+: shell-code is not joinable");
 
+    if (sca.arch == shell_code_t::arch_t::UNKNOWN || sca.arch == shell_code_t::arch_t::UNKNOWN)
+        CI::ci_error::raise(CI::ci_error_code::INVALID_ARG, "operator+: shell-code architecture not specified");
+
+    //resolve final arch
+    shell_code_t::arch_t arch = sca.arch;
+    if (arch == shell_code_t::arch_t::UNIVERSAL)
+        arch = scb.arch;
+
+    if (arch != scb.arch && scb.arch != shell_code_t::arch_t::UNIVERSAL)
+        CI::ci_error::raise(CI::ci_error_code::INVALID_ARG, "operator+: shell-codes have incompatible architecture");
+
     std::vector<uint8_t> x(sca.code);
     if (scb.entry != 0) {
         if (scb.entry < 128 && scb.entry >= -128) {
@@ -24,15 +35,19 @@ shell_code_t join(const shell_code_t &sca, const shell_code_t &scb) {
     for (auto b : scb.code)
         x.push_back(b);
 
-    return {std::move(x), sca.entry, true};
+    return {arch, std::move(x), sca.entry, true};
 }
 
 namespace {
 
 #pragma pack(push, 1)
-struct sc_exitprocess_param_t {
-    using exitprocess_t = void(WINAPI *)(UINT uExitCode);
-    exitprocess_t exitprocess;
+
+using exitprocess_t = void(WINAPI *)(UINT uExitCode);
+struct sc_exitprocess_param_32_t {
+    uint32_t exitprocess;
+};
+struct sc_exitprocess_param_64_t {
+    uint64_t exitprocess;
 };
 
 struct sc_exitprocess_t {
@@ -134,14 +149,41 @@ struct sc_continue_32_t {
 #pragma pack(pop)
 } // namespace
 
-shell_code_t sc_exit_process(UINT exit_code, bool self_resolve_api) {
-    if(self_resolve_api)
+shell_code_t sc_exit_process(UINT exit_code, bool self_resolve_api, shell_code_t::arch_t arch) {
+    if (self_resolve_api)
         CI::ci_error::raise(ci_error_code::FEATURE_NOT_IMPLEMENTED, "sc_exit_process: self-resolve-api not implemented");
 
-    sc_exitprocess_param_t param;
-    param.exitprocess = (sc_exitprocess_param_t::exitprocess_t)get_api("kernel32.dll", "ExitProcess");
+    if (arch == shell_code_t::arch_t::UNKNOWN)
+        CI::ci_error::raise(ci_error_code::INVALID_ARG, "%s: arch not specified", __FUNCTION__);
 
-    return sc_compose(param, sc_exitprocess_t{});
+    switch (arch) {
+    case shell_code_t::arch_t::X64:
+        if (!self_resolve_api) {
+#ifndef _WIN64
+            CI::ci_error::raise(ci_error_code::INVALID_ARG, "%s: x64 api cannot be resolved by 32-bit code", __FUNCTION__);
+#endif
+            sc_exitprocess_param_64_t param;
+            param.exitprocess = (uint64_t)get_api("kernel32.dll", "ExitProcess");
+
+            return sc_compose(param, sc_exitprocess_t{}, arch);
+        }
+        break;
+
+    case shell_code_t::arch_t::X86:
+        if (!self_resolve_api) {
+#ifdef _WIN64
+            CI::ci_error::raise(ci_error_code::INVALID_ARG, "%s: x86 api cannot be resolved by 64-bit code", __FUNCTION__);
+#else
+            sc_exitprocess_param_32_t param;
+            param.exitprocess = (uint32_t)get_api("kernel32.dll", "ExitProcess");
+
+            return sc_compose(param, sc_exitprocess_t{}, arch);
+#endif
+        }
+        break;
+    }
+
+    CI::ci_error::raise(ci_error_code::INVALID_ARG, "%s: arch (%d) not supported", __FUNCTION__, (int)arch);
 }
 
 #ifdef _WIN64
@@ -167,7 +209,7 @@ shell_code_t sc_resume(const CONTEXT &cxt) {
     continue_param.flags = cxt.EFlags;
     continue_param.rip = cxt.Rip;
 
-    return sc_compose(continue_param, sc_continue_64_t{});
+    return sc_compose(continue_param, sc_continue_64_t{}, shell_code_t::arch_t::X64);
 }
 
 #else
@@ -185,7 +227,7 @@ shell_code_t sc_resume(const CONTEXT &cxt) {
     continue_param.flags = cxt.EFlags;
     continue_param.eip = cxt.Eip;
 
-    return sc_compose(continue_param, sc_continue_32_t{});
+    return sc_compose(continue_param, sc_continue_32_t{}, shell_code_t::arch_t::X86);
 }
 #endif
 
@@ -203,42 +245,59 @@ shell_code_t sc_resume(const WOW64_CONTEXT &cxt) {
     continue_param.flags = cxt.EFlags;
     continue_param.eip = cxt.Eip;
 
-    return sc_compose(continue_param, sc_continue_32_t{});
+    return sc_compose(continue_param, sc_continue_32_t{}, shell_code_t::arch_t::X86);
 }
 
-shell_code_t sc_dummy(){
+shell_code_t sc_dummy() {
     shell_code_t sc;
+    sc.arch = shell_code_t::arch_t::UNIVERSAL;
     sc.joinable = true;
     return sc;
 }
 
-void sc_append(std::vector<uint8_t> &vec, const void* ptr, int len) {
+void sc_append(std::vector<uint8_t> &vec, const void *ptr, int len) {
     const uint8_t *p0 = (const uint8_t *)ptr;
     const uint8_t *p1 = (const uint8_t *)ptr + len;
     for (auto p = p0; p < p1; ++p)
         vec.push_back(*p);
 }
 
-void sc_append(std::vector<uint8_t> &vec, const char* ptr, bool includes_ending_zero) {
+void sc_append(std::vector<uint8_t> &vec, const char *ptr, bool includes_ending_zero) {
     const uint8_t *p0 = (const uint8_t *)ptr;
     const uint8_t *p1 = (const uint8_t *)ptr + strlen(ptr);
     for (auto p = p0; p < p1; ++p)
         vec.push_back(*p);
-    
-    if(includes_ending_zero)
+
+    if (includes_ending_zero)
         vec.push_back(0);
 }
 
-shell_code_t sc_compose(const void* param, int param_size, const void* code, int code_size) {
+shell_code_t sc_compose(const void *param, int param_size, const void *code, int code_size, shell_code_t::arch_t arch) {
     std::vector<uint8_t> vec;
-    sc_prolog_64_t prolog;
-    prolog.param_size = param_size;
 
-    sc_append(vec, prolog);
+    if (param_size < 128) {
+        sc_prolog_t prolog;
+        prolog.param_size = param_size;
+        sc_append(vec, prolog);
+    } else {
+        sc_prolog_small_t prolog;
+        prolog.param_size = param_size;
+        sc_append(vec, prolog);
+    }
+
     sc_append(vec, param, param_size);
-    sc_append(vec, sc_begin_64_t{});
+
+    switch (arch) {
+    case shell_code_t::arch_t::X64:
+        sc_append(vec, sc_begin_code_64_t{});
+        break;
+    case shell_code_t::arch_t::X86:
+        sc_append(vec, sc_begin_code_32_t{});
+        break;
+    }
+
     sc_append(vec, code, code_size);
-    return {vec, 0, true};
+    return {arch, vec, 0, true};
 }
 
 } // namespace CI::shellcode
