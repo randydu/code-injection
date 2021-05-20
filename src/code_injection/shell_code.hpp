@@ -82,6 +82,9 @@ void sc_append(std::vector<uint8_t> &vec, const T &t) {
         vec.push_back(*p);
 };
 
+void sc_append(std::vector<uint8_t> &vec, const void* ptr, int len);
+void sc_append(std::vector<uint8_t> &vec, const char* ptr, bool includes_ending_zero);
+
 template <typename T, typename U>
 shell_code_t sc_compose(const T &param, const U &code) {
     std::vector<uint8_t> vec;
@@ -94,6 +97,8 @@ shell_code_t sc_compose(const T &param, const U &code) {
     sc_append(vec, code);
     return {vec, 0, true};
 }
+
+shell_code_t sc_compose(const void* param, int param_size, const void* code, int code_size);
 
 shell_code_t join(const shell_code_t &sca, const shell_code_t &scb);
 } // namespace CI::shellcode

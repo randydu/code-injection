@@ -29,11 +29,11 @@ void init() {
 }
 
 std::string get_test_data_file(const std::string &rel_data_path) {
-    return impl_get_test_data_file(rel_data_path).string();
+    return impl_get_test_data_file(rel_data_path).make_preferred().string();
 }
 
 std::wstring get_test_data_file(const std::wstring &rel_data_path) {
-    return impl_get_test_data_file(rel_data_path).wstring();
+    return impl_get_test_data_file(rel_data_path).make_preferred().wstring();
 }
 
 } // namespace CI::ut

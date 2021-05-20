@@ -211,4 +211,34 @@ shell_code_t sc_dummy(){
     sc.joinable = true;
     return sc;
 }
+
+void sc_append(std::vector<uint8_t> &vec, const void* ptr, int len) {
+    const uint8_t *p0 = (const uint8_t *)ptr;
+    const uint8_t *p1 = (const uint8_t *)ptr + len;
+    for (auto p = p0; p < p1; ++p)
+        vec.push_back(*p);
+}
+
+void sc_append(std::vector<uint8_t> &vec, const char* ptr, bool includes_ending_zero) {
+    const uint8_t *p0 = (const uint8_t *)ptr;
+    const uint8_t *p1 = (const uint8_t *)ptr + strlen(ptr);
+    for (auto p = p0; p < p1; ++p)
+        vec.push_back(*p);
+    
+    if(includes_ending_zero)
+        vec.push_back(0);
+}
+
+shell_code_t sc_compose(const void* param, int param_size, const void* code, int code_size) {
+    std::vector<uint8_t> vec;
+    sc_prolog_64_t prolog;
+    prolog.param_size = param_size;
+
+    sc_append(vec, prolog);
+    sc_append(vec, param, param_size);
+    sc_append(vec, sc_begin_64_t{});
+    sc_append(vec, code, code_size);
+    return {vec, 0, true};
+}
+
 } // namespace CI::shellcode

@@ -1,0 +1,1 @@
+shared_library('mydll', ['mydll.cpp'], vs_module_defs: 'mydll.def')

@@ -109,8 +109,120 @@ void launch_inject(const target_info_t &target, const shell_code_t &sc, func_inj
     }
 }
 
-template <typename injected_dll_t>
-void prepare_shell_code(const injected_dll_t &dll, shell_code_t &sc) {
+// shell-code of dll loading
+struct dll_param_64_t {
+    uint64_t load_library;     //LoadLibrary
+    uint64_t get_proc_address; //GetProcAddress
+
+    int64_t dllname_offset; //offset of dll-name (relative to &dll_param_t)
+    int64_t apiname_offset; //offset of api-name (relative to &dll_param_t)
+    int64_t param_offset;   //offset of optional api-parameter (<0: no parameter)
+};
+struct dll_param_32_t {
+    uint32_t load_library;     //LoadLibrary
+    uint32_t get_proc_address; //GetProcAddress
+
+    int32_t dllname_offset; //offset of dll-name (relative to &dll_param_t)
+    int32_t apiname_offset; //offset of api-name (relative to &dll_param_t)
+    int32_t param_offset;   //offset of optional api-parameter (<0: no parameter)
+};
+
+struct dll_code_64_t {
+    uint8_t _0[3]{0x48, 0x8b, 0xcb};       //mov rcx, rbx
+    uint8_t _1[4]{0x48, 0x03, 0x4b, 0x10}; //add rcx, [rbx + 16]   ; dllname
+    uint8_t _2[2]{0xff, 0x13};             //call [rbx]            ; load_library(dllname)
+    uint8_t _3[3]{0x48, 0x85, 0xc0};       //test rax, rax
+    uint8_t _4[2]{0x74, 0x20};             //jz quit
+    //
+    uint8_t _5[3]{0x48, 0x8b, 0xc8};       //mov rcx, rax          ; hModule
+    uint8_t _6[3]{0x48, 0x8b, 0xd3};       //mov rdx, rbx
+    uint8_t _7[4]{0x48, 0x03, 0x53, 0x18}; //add rdx, [rbx + 3*8]   ;api-name
+    uint8_t _8[3]{0xff, 0x53, 0x08};       //call [rbx + 8];       ; get_proc_address
+    uint8_t _9[3]{0x48, 0x85, 0xc0};       //test rax, rax
+    uint8_t _10[2]{0x74, 0x0e};            //jz quit
+    //
+    uint8_t _11[4]{0x48, 0x8b, 0x4b, 0x20}; //mov rcx, [rbx + 4*8]
+    uint8_t _12[3]{0x48, 0x85, 0xc9};       //test rcx, rcx         ;offset == 0 if no param
+    uint8_t _13[2]{0x74, 0x03};             //jz no_param
+    uint8_t _14[3]{0x48, 0x03, 0xcb};       //add rcx, rbx          ;void * param
+    //
+    //no_param:
+    uint8_t _15[2]{0xff, 0xd0}; //call rax
+    //
+    //quit:
+};
+
+void get_param_bytes(std::any param, std::vector<uint8_t> &vec) {
+    if (!param.has_value())
+        return;
+
+    const auto &tid = param.type();
+    try {
+        if (tid == typeid(bool)) {
+            auto x = std::any_cast<bool>(param);
+            CI::shellcode::sc_append(vec, x);
+        }
+        if (tid == typeid(int)) {
+            auto x = std::any_cast<int>(param);
+            CI::shellcode::sc_append(vec, x);
+        }
+        if (tid == typeid(float)) {
+            auto x = std::any_cast<float>(param);
+            CI::shellcode::sc_append(vec, x);
+        }
+        if (tid == typeid(double)) {
+            auto x = std::any_cast<double>(param);
+            CI::shellcode::sc_append(vec, x);
+        }
+        if (tid == typeid(std::string)) {
+            auto x = std::any_cast<std::string>(param);
+            CI::shellcode::sc_append(vec, x.c_str(), true);
+        }
+    } catch (const std::bad_any_cast &e) {
+    }
+}
+
+shell_code_t prepare_shell_code(const injected_dll_a &dll) {
+    dll_param_64_t param;
+
+    auto knl = GetModuleHandleA("kernel32.dll");
+    param.load_library = (uint64_t)GetProcAddress(knl, "LoadLibraryA");
+    param.get_proc_address = (uint64_t)GetProcAddress(knl, "GetProcAddress");
+
+    const int param_size = sizeof(param);
+    param.dllname_offset = param_size;
+    param.apiname_offset = param_size + (dll.dll_path.size() + 1);                                            //dll-path includes ending zero
+    param.param_offset = !dll.proc_param.has_value() ? 0 : param.apiname_offset + (dll.proc_name.size() + 1); //proc-name includes ending zero
+
+    std::vector<uint8_t> vec_param;
+    get_param_bytes(dll.proc_param, vec_param);
+    int len = param_size + (dll.dll_path.size() + 1) + (dll.proc_name.size() + 1) + vec_param.size();
+    void *p = malloc(len);
+    ON_EXIT(free(p));
+
+    memset(p, 0, len);
+
+    char *ptr = (char *)p;
+    
+    strcpy(ptr, dll.dll_path.c_str());
+    ptr += (dll.dll_path.size() + 1);
+
+    strcpy(ptr, dll.proc_name.c_str());
+    ptr += (dll.proc_name.size() + 1);
+    
+    if (dll.proc_param.has_value())
+        memcpy(ptr, vec_param.data(), vec_param.size());
+
+    std::vector<uint8_t> v;
+    CI::shellcode::sc_append(v, param);
+    CI::shellcode::sc_append(v, p, len);
+
+    dll_code_64_t dc;
+    return CI::shellcode::sc_compose(v.data(), v.size(), &dc, sizeof(dc));
+}
+
+shell_code_t prepare_shell_code(const injected_dll_w &dll) {
+    return {};
 }
 
 } // namespace
@@ -128,13 +240,11 @@ void ci_error::raise(ci_error_code err, const char *fmt, ...) {
 
 //launch target and inject
 void launch_inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, inject_option_t opt) {
-    shell_code_t sc;
-    prepare_shell_code(dll, sc);
+    const auto &sc = prepare_shell_code(dll);
     launch_inject(target, sc, injector, opt);
 }
 void launch_inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, inject_option_t opt) {
-    shell_code_t sc;
-    prepare_shell_code(dll, sc);
+    const auto &sc = prepare_shell_code(dll);
     launch_inject(target, sc, injector, opt);
 }
 void launch_inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {
@@ -146,13 +256,11 @@ void launch_inject(const target_info_w &target, const shell_code_t &sc, func_inj
 
 //inject into running target
 void inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, inject_option_t opt) {
-    shell_code_t sc;
-    prepare_shell_code(dll, sc);
+    const auto &sc = prepare_shell_code(dll);
     inject(target, sc, injector, opt);
 }
 void inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, inject_option_t opt) {
-    shell_code_t sc;
-    prepare_shell_code(dll, sc);
+    const auto &sc = prepare_shell_code(dll);
     inject(target, sc, injector, opt);
 }
 void inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {
