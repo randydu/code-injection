@@ -15,21 +15,26 @@ namespace CI {
 //details of injected dll
 template <typename T>
 struct injected_dll_t {
-    T dll_path;          //full path to the injected dll
-    T proc_name;         //name of procedure to call after dll loading
-    std::any proc_param; //optional proc parameter. If has not value, the proc has no input parameter.
+    typedef typename T::value_type char_t;
+
+    bool is_64bit{false};  //64 bit or 32 bit?
+    T dll_path;            //full path to the injected dll
+    std::string proc_name; //name of procedure to call after dll loading
+    std::any proc_param;   //optional proc parameter. If has not value, the proc has no input parameter.
 };
 
 //details of injecting target
 template <typename T>
 struct target_info_t {
+    bool is_64bit{false}; //64 bit or 32 bit?
+
     T exe_path; //full path to target exe
     T params;   //command line parameters
     T cur_dir;  //current directory
 
     bool wait_until_initialized{false}; //wait until target process has finished its initialization
                                         //and is waiting gor user input with no input pending.
-    DWORD wait_timeout;                 //time-out intervals in milliseconds.
+    DWORD wait_timeout{INFINITE};       //time-out intervals in milliseconds.
                                         //INFINITE: wait until the process is idle.
 };
 
