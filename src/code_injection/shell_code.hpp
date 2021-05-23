@@ -51,8 +51,14 @@ struct sc_prolog_small_t {
 struct sc_begin_code_64_t {
     uint8_t _0[4]{0x48, 0x83, 0xc3, 0x06}; //add rbx, 6; now rbx => param-block
 };
+struct sc_begin_code_small_64_t {
+    uint8_t _0[4]{0x48, 0x83, 0xc3, 0x03}; //add rbx, 3; now rbx => param-block
+};
 struct sc_begin_code_32_t {
     uint8_t _0[3]{0x83, 0xc3, 0x06}; //add ebx, 6; now ebx => param-block
+};
+struct sc_begin_code_small_32_t {
+    uint8_t _0[3]{0x83, 0xc3, 0x03}; //add ebx, 3; now ebx => param-block
 };
 
 struct sc_jmp_t {
@@ -110,18 +116,33 @@ shell_code_t sc_compose(const T &param, const U &code, shell_code_t::arch_t arch
         CI::ci_error::raise(ci_error_code::INVALID_ARG, "%s: shell-code architecture not specified", __FUNCTION__);
 
     std::vector<uint8_t> vec;
-    sc_prolog_t prolog;
-    prolog.param_size = sizeof(param);
 
-    sc_append(vec, prolog);
+    bool small_param = sizeof(param) < 128;
+
+    if (small_param) {
+        sc_prolog_small_t prolog;
+        prolog.param_size = sizeof(param);
+        sc_append(vec, prolog);
+    } else {
+        sc_prolog_t prolog;
+        prolog.param_size = sizeof(param);
+        sc_append(vec, prolog);
+    }
+
     sc_append(vec, param);
 
     switch (arch) {
     case shell_code_t::arch_t::X86:
-        sc_append(vec, sc_begin_code_32_t{});
+        if (small_param)
+            sc_append(vec, sc_begin_code_small_32_t{});
+        else
+            sc_append(vec, sc_begin_code_32_t{});
         break;
     case shell_code_t::arch_t::X64:
-        sc_append(vec, sc_begin_code_64_t{});
+        if (small_param)
+            sc_append(vec, sc_begin_code_small_64_t{});
+        else
+            sc_append(vec, sc_begin_code_64_t{});
         break;
     default:
         CI::ci_error::raise(ci_error_code::INVALID_ARG, "%s: shell-code architecture [%d] not supported", __FUNCTION__, (int)arch);

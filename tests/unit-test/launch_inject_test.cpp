@@ -237,9 +237,10 @@ TEST_CASE("launch-inject-test", tag) {
                         SECTION("Dll") {
                             injected_dll_a dll{
                                 false,
-                                "user32.dll",
-                                "MessageBeep",
-                                0};
+                                CI::ut::get_test_data_file("bin\\mydll32.dll"),
+                                "hello",
+                            };
+                            printf("injecting dll (%s : %s)...\n", dll.dll_path.c_str(), dll.proc_name.c_str());
                             CHECK_NOTHROW(launch_inject(target, dll, inject_context, opt));
                         }
                 }

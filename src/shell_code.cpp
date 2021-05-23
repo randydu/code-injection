@@ -275,7 +275,9 @@ void sc_append(std::vector<uint8_t> &vec, const char *ptr, bool includes_ending_
 shell_code_t sc_compose(const void *param, int param_size, const void *code, int code_size, shell_code_t::arch_t arch) {
     std::vector<uint8_t> vec;
 
-    if (param_size < 128) {
+    bool small_param = param_size < 128;
+
+    if (small_param) {
         sc_prolog_small_t prolog;
         prolog.param_size = param_size;
         sc_append(vec, prolog);
@@ -289,10 +291,16 @@ shell_code_t sc_compose(const void *param, int param_size, const void *code, int
 
     switch (arch) {
     case shell_code_t::arch_t::X64:
-        sc_append(vec, sc_begin_code_64_t{});
+        if (small_param)
+            sc_append(vec, sc_begin_code_small_64_t{});
+        else
+            sc_append(vec, sc_begin_code_64_t{});
         break;
     case shell_code_t::arch_t::X86:
-        sc_append(vec, sc_begin_code_32_t{});
+        if (small_param)
+            sc_append(vec, sc_begin_code_small_32_t{});
+        else
+            sc_append(vec, sc_begin_code_32_t{});
         break;
     }
 
