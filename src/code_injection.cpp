@@ -1,7 +1,9 @@
 #include "code_injection/code_injection.hpp"
 
 #include <cassert>
+#include <chrono>
 #include <cstdarg>
+#include <thread>
 
 #include "on_exit.h"
 
@@ -118,9 +120,13 @@ void impl_launch_inject(const target_info_t &target, const shell_code_t &sc, fun
     if (opt.wait_target && opt.wait_before_injection) {
         resume_target(pi.hThread);
         wait_target_ready(pi.hProcess, opt.wait_timeout);
-        
-        if (auto rc = is_WOW64 ? Wow64SuspendThread(pi.hThread) : SuspendThread(pi.hThread); rc == -1)
+
+        if (auto rc = is_WOW64 ? Wow64SuspendThread(pi.hThread) : SuspendThread(pi.hThread); rc == (DWORD)-1)
             ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "%s: (Wow64)SuspendThread fails, error-code: [%d]", __FUNCTION__, GetLastError());
+
+        // printf("sleeping 2s for suspend ready...\n");
+        // std::this_thread::sleep_for(std::chrono::seconds(10)); //make sure the target thread is suspended.
+        // printf("sleeping done\n");
     }
 
     injector(pi, sc, opt, is_WOW64);
@@ -150,11 +156,18 @@ struct dll_param_32_t {
 };
 
 struct dll_code_64_t {
-    uint8_t _0[3]{0x48, 0x8b, 0xcb};       //mov rcx, rbx
-    uint8_t _1[4]{0x48, 0x03, 0x4b, 0x10}; //add rcx, [rbx + 16]   ; dllname
-    uint8_t _2[2]{0xff, 0x13};             //call [rbx]            ; load_library(dllname)
-    uint8_t _3[3]{0x48, 0x85, 0xc0};       //test rax, rax
-    uint8_t _4[2]{0x74, 0x20};             //jz quit
+    //make sure rsp is aligned by 16 (QWORD alignment)
+    uint8_t __0{0x54};                        //push rsp
+    uint8_t __1[5]{0x66, 0xf7, 0xc4, 0x0f, 0x0}; //test sp, 0x0f
+    uint8_t __2[2]{0x74, 0x03};               //jz aligned
+    uint8_t __3[3]{0xff, 0x34, 0x24};         //push [rsp]
+    //aligned:
+    uint8_t _shadow0[4]{0x48, 0x83, 0xec, 0x20}; //sub rsp, 32
+    uint8_t _0[3]{0x48, 0x8b, 0xcb};             //mov rcx, rbx
+    uint8_t _1[4]{0x48, 0x03, 0x4b, 0x10};       //add rcx, [rbx + 16]   ; dllname
+    uint8_t _2[2]{0xff, 0x13};                   //call [rbx]            ; load_library(dllname)
+    uint8_t _3[3]{0x48, 0x85, 0xc0};             //test rax, rax
+    uint8_t _4[2]{0x74, 0x20};                   //jz quit
     //
     uint8_t _5[3]{0x48, 0x8b, 0xc8};       //mov rcx, rax          ; hModule
     uint8_t _6[3]{0x48, 0x8b, 0xd3};       //mov rdx, rbx
@@ -172,6 +185,7 @@ struct dll_code_64_t {
     uint8_t _15[2]{0xff, 0xd0}; //call rax
     //
     //quit:
+    uint8_t __e1{0x5c}; //pop rsp
 };
 
 struct dll_code_32_t {

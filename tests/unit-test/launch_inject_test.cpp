@@ -40,7 +40,7 @@ void dummy_injector(const PROCESS_INFORMATION &pi, const shell_code_t &sc, injec
 
 TEST_CASE("launch-inject-test", tag) {
     CI::inject_option_t opt;
-    opt.wait_target = true;
+    opt.wait_target = false;
     opt.wait_before_injection = true;
 
     if (test_unicode)
