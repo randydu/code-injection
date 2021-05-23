@@ -41,7 +41,7 @@ struct inject_helper<WOW64_CONTEXT> {
 };
 
 template <typename T>
-void impl_inject_context(const PROCESS_INFORMATION &pi, const shell_code_t &sc, inject_option_t opt, bool shellcode_resolve_api) {
+void impl_inject_context(const PROCESS_INFORMATION &pi, const shell_code_t &sc, inject_option_t::exit_opt_t opt, bool shellcode_resolve_api) {
     T cxt{0};
     cxt.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
 
@@ -52,15 +52,15 @@ void impl_inject_context(const PROCESS_INFORMATION &pi, const shell_code_t &sc, 
     shell_code_t composed_sc;
 
     switch (opt) {
-    case inject_option_t::INJECT_EXITPROCESS:
+    case inject_option_t::EXIT_EXITPROCESS:
         composed_sc = sc + CI::shellcode::sc_exit_process(0, shellcode_resolve_api, sc.arch);
         psc = &composed_sc;
         break;
-    case inject_option_t::INJECT_RESUME:
+    case inject_option_t::EXIT_RESUME:
         composed_sc = sc + CI::shellcode::sc_resume(cxt);
         psc = &composed_sc;
         break;
-    case inject_option_t::INJECT_NONE:
+    case inject_option_t::EXIT_NONE:
         //do nothing
         break;
     };
@@ -83,22 +83,16 @@ void impl_inject_context(const PROCESS_INFORMATION &pi, const shell_code_t &sc, 
 
 } // namespace
 
-void inject_context(const PROCESS_INFORMATION &pi, const shell_code_t &sc, inject_option_t opt) {
-    BOOL is_WOW64;
-    if (!IsWow64Process(pi.hProcess, &is_WOW64))
-        ci_error::raise(ci_error_code::TARGET_INJECT_FAILURE, "IsWow64Process fails, err-code: [%d]", GetLastError());
-
-    printf("WOW64: %d\n", is_WOW64);
-
+void inject_context(const PROCESS_INFORMATION &pi, const shell_code_t &sc, const inject_option_t& opt, bool WOW64) {
 #ifdef _WIN64
-    if (is_WOW64) {
-        impl_inject_context<WOW64_CONTEXT>(pi, sc, opt, true); //64 => 32
+    if (WOW64) {
+        impl_inject_context<WOW64_CONTEXT>(pi, sc, opt.exit_opt, true); //64 => 32
     } else {
-        impl_inject_context<CONTEXT>(pi, sc, opt, false); //64 => 64
+        impl_inject_context<CONTEXT>(pi, sc, opt.exit_opt, false); //64 => 64
     }
 #else
-    if (is_WOW64) {
-        impl_inject_context<CONTEXT>(pi, sc, opt, false); //32 => 32
+    if (WOW64) {
+        impl_inject_context<CONTEXT>(pi, sc, opt.exit_opt, false); //32 => 32
     } else {
         //32=>64 code injection not supported.
         ci_error::raise(ci_error_code::TARGET_INJECT_FAILURE, "%s: 32 => 64 injection not supported", __FUNCTION__);

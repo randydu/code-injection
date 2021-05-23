@@ -90,8 +90,18 @@ void launch_target(const target_info_t &target, PROCESS_INFORMATION &pi) {
     }
 }
 
+void wait_target_ready(HANDLE hProcess, DWORD timeout) {
+    if (WaitForInputIdle(hProcess, timeout) == WAIT_FAILED)
+        ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "%s: WaitForInputIdle fails, error-code: [%d]", __FUNCTION__, GetLastError());
+}
+
+void resume_target(HANDLE hThread) {
+    if (ResumeThread(hThread) == -1)
+        ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "%s: ResumeThread fails, error-code: [%d]", __FUNCTION__, GetLastError());
+}
+
 template <bool ansi, typename target_info_t = type_trait_t<ansi>::target_info_t>
-void impl_launch_inject(const target_info_t &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {
+void impl_launch_inject(const target_info_t &target, const shell_code_t &sc, func_injector_t injector, const inject_option_t &opt) {
     PROCESS_INFORMATION pi;
     launch_target<ansi>(target, pi);
     ON_EXIT({
@@ -99,14 +109,26 @@ void impl_launch_inject(const target_info_t &target, const shell_code_t &sc, fun
         CloseHandle(pi.hThread);
     });
 
-    injector(pi, sc, opt);
+    BOOL is_WOW64;
+    if (!IsWow64Process(pi.hProcess, &is_WOW64))
+        ci_error::raise(ci_error_code::TARGET_INJECT_FAILURE, "IsWow64Process fails, err-code: [%d]", GetLastError());
 
-    if (ResumeThread(pi.hThread) == -1) {
-        ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "ResumeThread fails, error-code: [%d]", GetLastError());
+    printf("WOW64: %d\n", is_WOW64);
+
+    if (opt.wait_target && opt.wait_before_injection) {
+        resume_target(pi.hThread);
+        wait_target_ready(pi.hProcess, opt.wait_timeout);
+        
+        if (auto rc = is_WOW64 ? Wow64SuspendThread(pi.hThread) : SuspendThread(pi.hThread); rc == -1)
+            ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "%s: (Wow64)SuspendThread fails, error-code: [%d]", __FUNCTION__, GetLastError());
     }
-    if (target.wait_until_initialized && (WaitForInputIdle(pi.hProcess, target.wait_timeout) == WAIT_FAILED)) {
-        ci_error::raise(ci_error_code::TARGET_LAUNCH_FAILURE, "WaitForInputIdle fails, error-code: [%d]", GetLastError());
-    }
+
+    injector(pi, sc, opt, is_WOW64);
+
+    resume_target(pi.hThread);
+
+    if (opt.wait_target && !opt.wait_before_injection)
+        wait_target_ready(pi.hProcess, opt.wait_timeout);
 }
 
 // shell-code of dll loading
@@ -207,6 +229,7 @@ void get_param_bytes(std::any param, std::vector<uint8_t> &vec) {
             CI::shellcode::sc_append(vec, x.c_str(), true);
         }
     } catch (const std::bad_any_cast &e) {
+        ci_error::raise(ci_error_code::INVALID_ARG, "%s: std::any<> param type not supported", __FUNCTION__);
     }
 }
 
@@ -274,7 +297,7 @@ shell_code_t prepare_shell_code(const T &dll, bool self_resolve_api, shell_code_
     std::vector<uint8_t> vec_param;
     get_param_bytes(dll.proc_param, vec_param);
 
-    int len = param_size + (dll.dll_path.size() + 1) * sizeof(char_t) + (dll.proc_name.size() + 1) + vec_param.size();
+    int len = (dll.dll_path.size() + 1) * sizeof(char_t) + (dll.proc_name.size() + 1) + vec_param.size();
     void *p = malloc(len);
     ON_EXIT(free(p));
 
@@ -328,28 +351,28 @@ shell_code_t get_dll_shellcode(const target_t &target, const dll_t &dll) {
     return prepare_shell_code(dll, false, dll.is_64bit ? shell_code_t::arch_t::X64 : shell_code_t::arch_t::X86);
 }
 //launch target and inject
-void launch_inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, inject_option_t opt) {
+void launch_inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, const inject_option_t &opt) {
     launch_inject(target, get_dll_shellcode(target, dll), injector, opt);
 }
-void launch_inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, inject_option_t opt) {
+void launch_inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, const inject_option_t &opt) {
     launch_inject(target, get_dll_shellcode(target, dll), injector, opt);
 }
-void launch_inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {
+void launch_inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, const inject_option_t &opt) {
     impl_launch_inject<true>(target, sc, injector, opt);
 }
-void launch_inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {
+void launch_inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector, const inject_option_t &opt) {
     impl_launch_inject<false>(target, sc, injector, opt);
 }
 
 //inject into running target
-void inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, inject_option_t opt) {
+void inject(const target_info_a &target, const injected_dll_a &dll, func_injector_t injector, const inject_option_t &opt) {
     inject(target, get_dll_shellcode(target, dll), injector, opt);
 }
-void inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, inject_option_t opt) {
+void inject(const target_info_w &target, const injected_dll_w &dll, func_injector_t injector, const inject_option_t &opt) {
     inject(target, get_dll_shellcode(target, dll), injector, opt);
 }
-void inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {}
-void inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector, inject_option_t opt) {}
+void inject(const target_info_a &target, const shell_code_t &sc, func_injector_t injector, const inject_option_t &opt) {}
+void inject(const target_info_w &target, const shell_code_t &sc, func_injector_t injector, const inject_option_t &opt) {}
 
 void *get_api(const char *dll, const char *api) {
     HMODULE h{NULL};

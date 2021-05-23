@@ -29,5 +29,7 @@ BOOL WINAPI DllMain(
 }
 
 void WINAPI hello(){
-    MessageBoxA(NULL, "Hello!", "MyDll", MB_OK);
+    //MessageBoxA(NULL, "Hello!", "MyDll", MB_OK);
+    OutputDebugStringA("Hello from mydll");
+    MessageBeep(0);
 }

@@ -276,11 +276,11 @@ shell_code_t sc_compose(const void *param, int param_size, const void *code, int
     std::vector<uint8_t> vec;
 
     if (param_size < 128) {
-        sc_prolog_t prolog;
+        sc_prolog_small_t prolog;
         prolog.param_size = param_size;
         sc_append(vec, prolog);
     } else {
-        sc_prolog_small_t prolog;
+        sc_prolog_t prolog;
         prolog.param_size = param_size;
         sc_append(vec, prolog);
     }
