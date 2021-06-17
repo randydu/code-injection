@@ -87,7 +87,7 @@ TEST_CASE("launch-inject-test", tag) {
                                 "hello",
                             };
                             printf("injecting dll (%ls : %s)...\n", dll.dll_path.c_str(), dll.proc_name.c_str());
-                            CHECK_NOTHROW(launch_inject(target, dll, inject_context, opt));
+                            CHECK_THROWS(launch_inject(target, dll, inject_context, opt));
                         }
                 }
         }

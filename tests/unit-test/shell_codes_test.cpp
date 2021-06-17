@@ -17,9 +17,9 @@ TEST_CASE("sc-helloworld", tag) {
     SECTION("64 bit") {
         const auto &sc = CI::ut::sc_hello_world_64(false);
 #ifdef _WIN64
-        CHECK(sc.code.size() == 60);
+        CHECK(sc.code.size() == 57);
 #else
-        CHECK(sc.code.size() == 56);
+        CHECK(sc.code.size() == 53);
 #endif
         CHECK(sc.entry == 0);
     }
