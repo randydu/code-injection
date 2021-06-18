@@ -2,7 +2,7 @@
 
 directory = code-injection
 url=https://github.com/randydu/code-injection.git
-revision = latest
+revision = head
 clone-recursive = false
 
 [provide]

@@ -2,7 +2,7 @@
 
 directory = catch2_ex
 url=git@github.com:randydu/meson-subproject-catch2-ex.git
-revision = v1.0.0
+revision = v1.0.1
 clone-recursive = false
 
 [provide]
